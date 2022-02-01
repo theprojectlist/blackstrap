@@ -6,31 +6,35 @@ FROM debian:bullseye-slim as base
 LABEL authors="Elias Gabriel <me@eliasfgabriel.com>"
 MAINTAINER thearchitector
 
-RUN apt update && \
-    apt install -y \
-        build-essential git subversion cmake libx11-dev libxxf86vm-dev \
-        libxcursor-dev libxi-dev libxrandr-dev libxinerama-dev libglew-dev \
-        sudo ninja-build python3 && \
-        ln -s /usr/bin/python3 /usr/bin/python
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential ca-certificates git cmake \
+        libglew-dev sudo ninja-build python3 python3-dev && \
+    ln -s /usr/bin/python3 /usr/bin/python
 
 ENV BLENDER_VER "2.93"
 RUN mkdir /blender-git && \
-    git clone https://git.blender.org/blender.git /blender-git/blender && \
-    cd /blender-git/blender && \
-    git checkout blender-v$BLENDER_VER-release
+    git clone \
+        --branch blender-v$BLENDER_VER-release \
+        --depth 1 \
+        --jobs $(nproc) \
+        https://git.blender.org/blender.git /blender-git/blender
 
 RUN cd /blender-git && \
     ./blender/build_files/build_environment/install_deps.sh \
+        --no-confirm \
         --with-all \
         --skip-ffmpeg \
         --skip-xr-openxr
+
 RUN mkdir /blender-git/blender-build && \
     cd /blender-git/blender-build && \
-    cmake ../blender \
+    cmake ../blender -G Ninja \
         -C../blender/build_files/cmake/config/blender_headless.cmake \
         -DCMAKE_INSTALL_PREFIX=/opt/blender \
         -DWITH_INSTALL_PORTABLE=OFF \
         -DWITH_BUILDINFO=OFF \
+        -DWITH_INTERNATIONAL=OFF \
         -DPYTHON_VERSION=3.9 \
         -DWITH_OPENCOLORIO=ON \
         -DOPENCOLORIO_ROOT_DIR=/opt/lib/ocio \
@@ -57,18 +61,15 @@ RUN mkdir /blender-git/blender-build && \
         -DWITH_ALEMBIC=ON \
         -DALEMBIC_ROOT_DIR=/opt/lib/alembic \
         -DWITH_USD=ON \
-        -DUSD_ROOT_DIR=/opt/lib/usd
-RUN cd /blender-git/blender-build && \
-    ls -ahl && \
-    cat Makefile && \
-    ninja -G Ninja
+        -DUSD_ROOT_DIR=/opt/lib/usd && \
+    ninja install
 
 
-FROM base as final
+FROM debian:bullseye-slim
 
 COPY --from=base /opt/blender/ /opt/blender/
 
 WORKDIR /data
-RUN /opt/blender/blender -b -noaudio --version
+RUN /opt/blender/bin/blender -b -noaudio --version
 
-ENTRYPOINT ["/opt/blender/blender", "-b", "-noaudio"]
+ENTRYPOINT ["/opt/blender/bin/blender", "-b", "-noaudio"]
