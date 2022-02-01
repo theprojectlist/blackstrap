@@ -1,35 +1,37 @@
 # syntax=docker/dockerfile:1
 
 
-FROM debian:bullseye-slim as base
+## builder
+FROM debian:bullseye-slim as builder
 
-LABEL authors="Elias Gabriel <me@eliasfgabriel.com>"
-MAINTAINER thearchitector
+LABEL thearchitector="Elias Gabriel <me@eliasfgabriel.com>"
 
+# install system deps
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential ca-certificates git cmake \
         libglew-dev sudo ninja-build python3 python3-dev && \
     ln -s /usr/bin/python3 /usr/bin/python
 
+# clone blender
 ENV BLENDER_VER "2.93"
-RUN mkdir /blender-git && \
-    git clone \
-        --branch blender-v$BLENDER_VER-release \
+WORKDIR /blender-git
+RUN git clone \
+        --branch "blender-v${BLENDER_VER}-release" \
         --depth 1 \
-        --jobs $(nproc) \
+        --jobs "$(nproc)" \
         https://git.blender.org/blender.git /blender-git/blender
 
-RUN cd /blender-git && \
-    ./blender/build_files/build_environment/install_deps.sh \
+# build blender dependencies
+RUN ./blender/build_files/build_environment/install_deps.sh \
         --no-confirm \
         --with-all \
         --skip-ffmpeg \
         --skip-xr-openxr
 
-RUN mkdir /blender-git/blender-build && \
-    cd /blender-git/blender-build && \
-    cmake ../blender -G Ninja \
+# build blender
+WORKDIR /blender-git/blender-build
+RUN cmake ../blender -G Ninja \
         -C../blender/build_files/cmake/config/blender_headless.cmake \
         -DCMAKE_INSTALL_PREFIX=/opt/blender \
         -DWITH_INSTALL_PORTABLE=OFF \
@@ -65,9 +67,10 @@ RUN mkdir /blender-git/blender-build && \
     ninja install
 
 
+## production target
 FROM debian:bullseye-slim
 
-COPY --from=base /opt/blender/ /opt/blender/
+COPY --from=builder /opt/blender/ /opt/blender/
 
 WORKDIR /data
 RUN /opt/blender/bin/blender -b -noaudio --version
