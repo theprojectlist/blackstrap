@@ -9,7 +9,7 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential ca-certificates git cmake subversion\
-        file ninja-build python3-dev sudo libpthread-stubs0-dev && \
+        file ninja-build python3-dev sudo && \
     rm -rf /var/lib/apt/lists/* && \
     ln -s /usr/bin/python3 /usr/bin/python
 
@@ -23,11 +23,15 @@ RUN git clone \
         https://git.blender.org/blender.git /blender-git/blender
 
 # build blender dependencies
-# - sudo should not be available, so alias it to "eval"
+# - blosc 1.5.0 fails to compile on ARM. bump the version to 1.5.4
 # - most ARM do not support SIMD, so we disable it if on those CPUs
 # - replace make with ninja for speed (though they're likely similar)
 RUN USE_SIMD="$([[ $(uname -m) == 'x86_64' ]] && T='avx2' || T=0; echo $T)" && \
-    sed -i "s/sse2/$USE_SIMD/g; \
+    BLOSC_SIMD="$([[ $USE_SIMD != 'avx2' ]] && T='-O3' || T=''; echo $T)" && \
+    sed -i \
+       "s/BLOSC_VERSION=\"1.5.0\"/BLOSC_VERSION=\"1.5.4\"/g; \
+        s/KS=OFF/KS=OFF -DCMAKE_C_FLAGS='$BLOSC_SIMD'/g; \
+        s/sse2/$USE_SIMD/g; \
         s/cmake \$cmake_d/cmake \$cmake_d -G Ninja/g; \
         s/make -j\$THREADS/ninja/g; s/&& make //g; \
         s/make clean//g" \
