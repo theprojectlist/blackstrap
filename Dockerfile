@@ -29,7 +29,8 @@ RUN git clone \
 RUN USE_SIMD="$([[ $(uname -m) == 'x86_64' ]] && T='avx2' || T=0; echo $T)" && \
     BLOSC_SIMD="$([[ $USE_SIMD != 'avx2' ]] && T='-O3' || T=''; echo $T)" && \
     sed -i \
-       "s/BLOSC_VERSION=\"1.5.0\"/BLOSC_VERSION=\"1.5.4\"/g; \
+       "s/USD_VERSION=\"v21.02\"/USD_VERSION=\"21.11\"/g; \
+        s/BLOSC_VERSION=\"1.5.0\"/BLOSC_VERSION=\"1.5.4\"/g; \
         s/KS=OFF/KS=OFF -DCMAKE_C_FLAGS='$BLOSC_SIMD'/g; \
         s/sse2/$USE_SIMD/g; \
         s/cmake \$cmake_d/cmake \$cmake_d -G Ninja/g; \
