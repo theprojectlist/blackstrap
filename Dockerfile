@@ -23,13 +23,15 @@ RUN git clone \
         https://git.blender.org/blender.git /blender-git/blender
 
 # build blender dependencies
+# - usd 21.02 fails on ARM. bump the version to 21.08 and remove the failing diff patch
 # - blosc 1.5.0 fails to compile on ARM. bump the version to 1.5.4
 # - most ARM do not support SIMD, so we disable it if on those CPUs
 # - replace make with ninja for speed (though they're likely similar)
 RUN USE_SIMD="$([[ $(uname -m) == 'x86_64' ]] && T='avx2' || T=0; echo $T)" && \
     BLOSC_SIMD="$([[ $USE_SIMD != 'avx2' ]] && T='-O3' || T=''; echo $T)" && \
     sed -i \
-       "s/USD_VERSION=\"v21.02\"/USD_VERSION=\"21.11\"/g; \
+       "s/USD_VERSION=\"21.02\"/USD_VERSION=\"21.08\"/g; \
+        s/patch -d \$_src -p1 < \$SCRIPT_DIR\/patches\/usd.diff//g; \
         s/BLOSC_VERSION=\"1.5.0\"/BLOSC_VERSION=\"1.5.4\"/g; \
         s/KS=OFF/KS=OFF -DCMAKE_C_FLAGS='$BLOSC_SIMD'/g; \
         s/sse2/$USE_SIMD/g; \
