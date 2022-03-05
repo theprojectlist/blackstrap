@@ -1,0 +1,83 @@
+# syntax=docker/dockerfile:1.3-labs
+
+
+FROM --platform=$BUILDPLATFORM debian:bullseye-slim as builder
+
+LABEL thearchitector="Elias Gabriel <me@eliasfgabriel.com>"
+ARG DEBIAN_FRONTEND=noninteractive
+
+# install system deps
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates git cmake ninja-build \
+        sudo build-essential sudo file
+
+# clone blender
+SHELL [ "/bin/bash", "-c" ]
+ENV BLENDER_VER "2.93"
+WORKDIR /blender-git
+RUN git clone \
+        --depth 1 \
+        --branch "blender-v$BLENDER_VER-release" \
+        --jobs "$(nproc)" \
+        https://git.blender.org/blender.git && \
+    cd ./blender && \
+    git remote set-branches --add origin master && \
+    git fetch \
+        --depth 1 \
+        --jobs "$(nproc)" \
+        --progress \
+        origin master:master && \
+    git checkout master
+
+# create the target build environment
+ARG TARGETARCH BUILDARCH
+COPY ./toolchain /toolchain
+RUN /toolchain/make_env.sh
+
+# build blender dependencies
+ARG OIDN_VERSION="1.3.0" OIIO_VERSION="2.1.15.0"
+WORKDIR /blender-git/blender
+RUN source /toolchain/use_env.sh && \
+    sed -i 's/OIDN_VERSION=/OIDN_VERSION="$OIDN_VERSION"#/g; \
+        s/"sudo"/"\$CHROOT"/g; \
+        s/! \$SUDO/! "\$SUDO"/g; \
+        s/dpkg-query/\$CHROOT dpkg-query/g; \
+        s/apt-cache/\$CHROOT apt-cache/g; \
+        s/apt-get install -y/apt-get install -y --no-install-recommends/g; \
+        s/cmake \$cmake_d/cmake \$cmake_d -DCMAKE_TOOLCHAIN_FILE=\/toolchain\/toolchain.cmake/g' \
+        /blender-git/blender/build_files/build_environment/install_deps.sh && \
+    /blender-git/blender/build_files/build_environment/install_deps.sh \
+        --no-confirm \
+        --source "$TARGET_ROOT_PATH/libsource" \
+        --install "$TARGET_ROOT_PATH/lib" \
+        --skip-python \
+        --skip-boost \
+        --skip-tbb \
+        --ver-oiio "$OIIO_VERSION" \
+        # --force-oiio \
+        --with-opencollada \
+        --with-embree \
+        --with-oidn && \
+    git checkout "blender-v$BLENDER_VER-release"
+
+WORKDIR /blender-git/blender-build
+RUN cmake -S ../blender -G Ninja \
+        -C../blender/build_files/cmake/config/blender_headless.cmake \
+        -DCMAKE_TOOLCHAIN_FILE=/toolchain/toolchain.cmake \
+        -DCMAKE_INSTALL_PREFIX=/opt/blender \
+        -DWITH_INSTALL_PORTABLE=OFF \
+        -DWITH_BUILDINFO=OFF \
+        -DWITH_INTERNATIONAL=OFF && \
+        # -DOPENCOLORIO_ROOT_DIR=/opt/lib/ocio \
+        # -DOPENIMAGEIO_ROOT_DIR=/opt/lib/oiio \
+        # -DOSL_ROOT_DIR=/opt/lib/osl \
+        # -DOPENSUBDIV_ROOT_DIR=/opt/lib/osd \
+        # -DOPENVDB_ROOT_DIR=/opt/lib/openvdb \
+        # -DBLOSC_ROOT_DIR=/opt/lib/blosc \
+        # -DOPENCOLLADA_ROOT_DIR=/opt/lib/opencollada \
+        # -DEMBREE_ROOT_DIR=/opt/lib/embree \
+        # -DOPENIMAGEDENOISE_ROOT_DIR=/opt/lib/oidn \
+        # -DALEMBIC_ROOT_DIR=/opt/lib/alembic \
+        # -DUSD_ROOT_DIR=/opt/lib/usd && \
+    ninja install

@@ -1,0 +1,15 @@
+# the name of the target os
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR $ENV{TARGET_ARCH})
+
+# location of c and cxx compilers
+set(CMAKE_C_COMPILER $ENV{TARGET_C_COMPILER})
+set(CMAKE_CXX_COMPILER $ENV{TARGET_CXX_COMPILER})
+
+# target architecture environment
+set(CMAKE_FIND_ROOT_PATH $ENV{TARGET_ROOT_PATH})
+
+# restrict behavior of find commands
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
